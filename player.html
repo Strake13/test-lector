@@ -17,12 +17,22 @@
     }
     var videoId = qs('v');
     var loop = qs('loop') === '1';
+    var vol = parseInt(qs('vol'), 10);
+    if (isNaN(vol)) { vol = 80; }
 
     var tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
     document.head.appendChild(tag);
 
     var player;
+    function applyVol(v) {
+      if (!player) { return; }
+      try {
+        if (v <= 0) { player.mute(); }
+        else { player.unMute(); player.setVolume(v); }
+      } catch (e) {}
+    }
+
     window.onYouTubeIframeAPIReady = function () {
       if (!videoId) { return; }
       player = new YT.Player('player', {
@@ -33,16 +43,23 @@
           loop: loop ? 1 : 0, playlist: loop ? videoId : undefined
         },
         events: {
-          onReady: function (e) {
-            try { e.target.unMute(); e.target.setVolume(80); } catch (err) {}
-            e.target.playVideo();
-          },
+          onReady: function (e) { applyVol(vol); e.target.playVideo(); },
           onStateChange: function (e) {
             if (loop && e.data === YT.PlayerState.ENDED) { e.target.playVideo(); }
           }
         }
       });
     };
+
+    // messages en provenance du script FiveM (SendDuiMessage) : volume / play / pause en direct
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (typeof d === 'string') { try { d = JSON.parse(d); } catch (err) { return; } }
+      if (!d || !d.action) { return; }
+      if (d.action === 'volume') { vol = parseInt(d.v, 10) || 0; applyVol(vol); }
+      else if (d.action === 'pause' && player) { try { player.pauseVideo(); } catch (x) {} }
+      else if (d.action === 'play' && player) { try { player.playVideo(); } catch (x) {} }
+    });
   </script>
 </body>
 </html>
